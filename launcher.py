@@ -23,13 +23,15 @@ import threading
 import time
 import urllib.request
 
-FROZEN = getattr(sys, "frozen", False)
-ROOT = (os.path.dirname(os.path.abspath(sys.executable)) if FROZEN
-        else os.path.dirname(os.path.abspath(__file__)))
+# 路径统一由 server/paths.py 解析（纯标准库，pip 安装前也可用）：
+# exe 在 Program Files 等只读位置时，数据/日志自动落到 %LOCALAPPDATA%\12306\data
+from server.paths import FROZEN, ROOT as PROJECT_ROOT, WEB_LOG_FILE
+
+ROOT = str(PROJECT_ROOT)
 VENV_PY = os.path.join(ROOT, ".venv314", "Scripts", "python.exe")
 WEB_URL = "http://127.0.0.1:8765"
 PORT = 8765
-LOG_FILE = os.path.join(ROOT, "data", "logs", "web.log")
+LOG_FILE = str(WEB_LOG_FILE)
 REQ_FILE = os.path.join(ROOT, "requirements.txt")
 
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
