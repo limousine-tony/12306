@@ -7,7 +7,6 @@
   ▶ 启动服务      后台启动 Web 抢票服务（python -m server）
   ⏹ 停止服务      停止本启动器启动的实例；外部启动的也能按端口停止
   🌐 打开网页      打开 http://127.0.0.1:8765 控制台
-  📦 安装依赖      自动创建 .venv314 并 pip install（首次使用点这个）
 
 下方日志框显示服务端原始日志（data/logs/web.log）与启动器操作记录。
 
@@ -32,7 +31,6 @@ VENV_PY = os.path.join(ROOT, ".venv314", "Scripts", "python.exe")
 WEB_URL = "http://127.0.0.1:8765"
 PORT = 8765
 LOG_FILE = str(WEB_LOG_FILE)
-REQ_FILE = os.path.join(ROOT, "requirements.txt")
 
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -174,7 +172,7 @@ class Launcher:
         self.root.after(300, self._tail_log)
         self.root.after(500, self._poll_status)
         threading.Thread(target=_cleanup_stale_mei, daemon=True).start()
-        self.append_log("启动器就绪。首次使用请先点【安装依赖】，然后点【启动服务】。")
+        self.append_log("启动器就绪。点【启动服务】即可使用（无需安装依赖）。")
 
     # ---------------- UI ----------------
 
@@ -204,12 +202,7 @@ class Launcher:
                                   activeforeground=self.FG, relief="flat", bd=0,
                                   font=("Microsoft YaHei UI", 10, "bold"),
                                   padx=18, pady=7, cursor="hand2")
-        self.btn_deps = tk.Button(bar, text="📦  安装依赖", command=self.install_deps,
-                                  bg=self.BG2, fg=self.FG, activebackground="#1a2234",
-                                  activeforeground=self.FG, relief="flat", bd=0,
-                                  font=("Microsoft YaHei UI", 10, "bold"),
-                                  padx=18, pady=7, cursor="hand2")
-        for b in (self.btn_start, self.btn_stop, self.btn_open, self.btn_deps):
+        for b in (self.btn_start, self.btn_stop, self.btn_open):
             b.pack(side="left", padx=(0, 10))
 
         opts = ttk.Frame(self.root, padding=(16, 0, 16, 4))
@@ -359,44 +352,6 @@ class Launcher:
         import webbrowser
         webbrowser.open(WEB_URL)
         self.append_log(f"已打开浏览器: {WEB_URL}")
-
-    def install_deps(self):
-        if FROZEN:
-            self.append_log("当前为打包版（12306.exe），所有依赖已内置，无需安装。", "warn")
-            return
-        self.btn_deps.configure(state="disabled", text="⏳ 安装中…")
-        self.append_log("开始安装依赖（首次运行约需几分钟）…")
-
-        def work():
-            try:
-                py = find_python()
-                if not os.path.exists(VENV_PY):
-                    self.root.after(0, lambda: self.append_log("创建虚拟环境 .venv314 …"))
-                    r = subprocess.run([sys.executable or "python", "-m", "venv",
-                                        os.path.join(ROOT, ".venv314")],
-                                       cwd=ROOT, capture_output=True, text=True,
-                                       creationflags=CREATE_NO_WINDOW)
-                    if r.returncode != 0:
-                        self.root.after(0, lambda: self.append_log(
-                            f"创建虚拟环境失败:\n{r.stderr[-800:]}", "err"))
-                        return
-                    py = find_python()
-                r = subprocess.run([py, "-m", "pip", "install", "-r", REQ_FILE],
-                                   cwd=ROOT, capture_output=True, text=True,
-                                   creationflags=CREATE_NO_WINDOW)
-                tail = "\n".join((r.stdout or "").splitlines()[-12:])
-                if r.returncode == 0:
-                    self.root.after(0, lambda: self.append_log(
-                        f"✅ 依赖安装完成。\n{tail}", "ok"))
-                else:
-                    self.root.after(0, lambda: self.append_log(
-                        f"❌ 安装失败:\n{(r.stderr or tail)[-800:]}", "err"))
-            finally:
-                def done():
-                    self.btn_deps.configure(state="normal", text="📦  安装依赖")
-                self.root.after(0, done)
-
-        threading.Thread(target=work, daemon=True).start()
 
     def on_close(self):
         self._closing = True
