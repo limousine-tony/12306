@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>12306 抢票控制台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --card: #121826;
+    --elevated: #1a2234;
+    --inset: #0d1220;
+    --border: #232d42;
+    --border-strong: #31405e;
+    --text: #e8eef9;
+    --text-2: #9aa8c0;
+    --text-3: #6b7a94;
+    --blue: #3b82f6;
+    --blue-deep: #1d4ed8;
+    --amber: #f59e0b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --radius: 10px;
+    --font-ui: "Fira Sans", "Microsoft YaHei", "PingFang SC", sans-serif;
+    --font-mono: "Fira Code", Consolas, "Courier New", monospace;
+    --t-fast: 150ms cubic-bezier(.4,0,.2,1);
+    --t-med: 220ms cubic-bezier(.4,0,.2,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 15px; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--font-ui); line-height: 1.6;
+    background-image: radial-gradient(1200px 400px at 50% -100px, rgba(59,130,246,.07), transparent);
+  }
+  #app { max-width: 1240px; margin: 0 auto; padding: 0 16px 40px; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- 焦点可见性（键盘导航） ---------- */
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;
+    padding: 12px 4px; margin-bottom: 14px;
+    background: rgba(11,15,23,.82); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .logo {
+    width: 34px; height: 34px; border-radius: 8px; flex: none;
+    background: linear-gradient(135deg, var(--blue-deep), var(--blue));
+    display: grid; place-items: center; color: #fff;
+  }
+  .brand h1 { font-size: 17px; font-weight: 700; letter-spacing: .2px; }
+  .brand .sub { font-size: 11px; color: var(--text-3); letter-spacing: 2px; text-transform: uppercase; }
+  .status-cluster { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* ---------- 徽标 ---------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500;
+    border: 1px solid var(--border-strong); color: var(--text-2); background: var(--elevated);
+    white-space: nowrap;
+  }
+  .badge svg { width: 13px; height: 13px; }
+  .badge.ok    { color: #4ade80; border-color: rgba(34,197,94,.4);  background: rgba(34,197,94,.08); }
+  .badge.warn  { color: #fbbf24; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.08); }
+  .badge.err   { color: #f87171; border-color: rgba(239,68,68,.4);  background: rgba(239,68,68,.08); }
+  .badge.run   { color: #60a5fa; border-color: rgba(59,130,246,.45);background: rgba(59,130,246,.1); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+  .dot.pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* ---------- 卡片 ---------- */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px; margin-bottom: 14px;
+  }
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .card-head .ic {
+    width: 30px; height: 30px; border-radius: 8px; flex: none;
+    display: grid; place-items: center;
+    background: var(--elevated); border: 1px solid var(--border); color: var(--blue);
+  }
+  .card-head h2 { font-size: 14.5px; font-weight: 600; letter-spacing: .3px; }
+  .card-head .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .section-label {
+    font-size: 11px; font-weight: 600; color: var(--text-3);
+    letter-spacing: 1.5px; text-transform: uppercase; margin: 14px 0 6px;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
+  @media (max-width: 920px) { .grid2 { grid-template-columns: 1fr; } }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+  /* ---------- 表单 ---------- */
+  label.f { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-2); flex: 1; min-width: 128px; }
+  input, select {
+    background: var(--inset); border: 1px solid var(--border);
+    color: var(--text); border-radius: 7px; padding: 8px 11px; font-size: 13.5px;
+    font-family: var(--font-ui); outline: none; width: 100%;
+    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  }
+  input:hover, select:hover { border-color: var(--border-strong); }
+  input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+  input[type="date"], input[type="time"], input[type="number"], .mono-input { font-family: var(--font-mono); }
+  input[type="checkbox"] { width: auto; accent-color: var(--blue); }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text-2); user-select: none; }
+  .switch:hover { color: var(--text); }
+
+  /* ---------- 按钮 ---------- */
+  button {
+    position: relative; overflow: hidden;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    background: var(--blue); color: #fff; border: 1px solid transparent; border-radius: 7px;
+    padding: 8px 18px; font-size: 13.5px; font-weight: 600; font-family: var(--font-ui);
+    cursor: pointer; white-space: nowrap;
+    transition: background var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast);
+  }
+  button::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.4) 0%, transparent 55%);
+    opacity: 0; transform: scale(.3);
+  }
+  button:active::after { opacity: 1; transform: scale(1.7); transition: transform .4s ease-out, opacity .55s ease-out; }
+  button svg { width: 15px; height: 15px; }
+  button:hover { background: #2f74e8; box-shadow: 0 2px 10px rgba(59,130,246,.3); }
+  button:active { transform: translateY(1px); }
+  button:disabled { background: #2a3550; color: #5d6f8f; cursor: not-allowed; box-shadow: none; transform: none; }
+  button.ghost { background: transparent; border-color: var(--border-strong); color: var(--text-2); }
+  button.ghost:hover { background: var(--elevated); color: var(--text); box-shadow: none; }
+  button.danger { background: var(--red); }
+  button.danger:hover { background: #dc2626; box-shadow: 0 2px 10px rgba(239,68,68,.3); }
+  button.small { padding: 4px 12px; font-size: 12px; border-radius: 6px; }
+  button.small svg { width: 13px; height: 13px; }
+  .spin svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- 座位/车次 chips ---------- */
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 13px; margin: 3px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--inset);
+    font-size: 13px; color: var(--text-2); cursor: pointer; user-select: none;
+    transition: all var(--t-fast);
+  }
+  .chip:hover { border-color: var(--border-strong); color: var(--text); }
+  .chip.on { border-color: var(--blue); color: #fff; background: rgba(59,130,246,.16); }
+  .chip .ord {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    color: var(--amber); background: rgba(245,158,11,.12);
+    border-radius: 4px; padding: 0 4px; line-height: 16px;
+  }
+
+  /* ---------- 余票表 ---------- */
+  .tablewrap { overflow: auto; max-height: 440px; border: 1px solid var(--border); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+  th, td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th {
+    color: var(--text-3); font-weight: 600; font-size: 11px;
+    letter-spacing: 1px; text-transform: uppercase;
+    position: sticky; top: 0; background: var(--card); z-index: 5;
+  }
+  tbody tr { transition: background var(--t-fast); }
+  tbody tr:hover td { background: rgba(59,130,246,.05); }
+  tr.preferred td:first-child { box-shadow: inset 3px 0 0 var(--amber); }
+  tr.unbuyable { opacity: .45; }
+  .train-code { font-family: var(--font-mono); font-weight: 600; font-size: 13.5px; letter-spacing: .5px; }
+  .time-cell { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-2); }
+  .seat-pill {
+    display: inline-block; min-width: 34px; padding: 1px 8px; border-radius: 5px;
+    font-family: var(--font-mono); font-size: 12.5px; font-weight: 600;
+    transition: color var(--t-med), background var(--t-med);
+  }
+  .seat-yes { color: #4ade80; background: rgba(34,197,94,.12); }
+  .seat-no  { color: #46536b; }
+  /* 余票变化闪烁：出票=绿光，减少/售罄=琥珀 */
+  .seat-pill.flash-up   { animation: flashUp .95s ease-out; }
+  .seat-pill.flash-down { animation: flashDown .95s ease-out; }
+  @keyframes flashUp {
+    0%   { background: rgba(34,197,94,.75); color: #04120a; box-shadow: 0 0 14px rgba(34,197,94,.7); }
+    100% { box-shadow: 0 0 0 transparent; }
+  }
+  @keyframes flashDown {
+    0%   { background: rgba(245,158,11,.65); color: #140d02; box-shadow: 0 0 12px rgba(245,158,11,.55); }
+    100% { box-shadow: 0 0 0 transparent; }
+  }
+  td .seat-select { width: 88px; display: inline-block; padding: 4px 8px; font-size: 12.5px; }
+  .empty-state { padding: 44px 20px; text-align: center; color: var(--text-3); }
+  .empty-state svg { width: 40px; height: 40px; opacity: .4; margin-bottom: 10px; }
+
+  /* ---------- 日志控制台 ---------- */
+  #logbox {
+    background: var(--inset); border: 1px solid var(--border); border-radius: 8px;
+    height: 264px; overflow-y: auto; padding: 10px 12px;
+    font-family: var(--font-mono); font-size: 12px; line-height: 1.75;
+  }
+  #logbox .ts { color: #4a5872; margin-right: 8px; }
+  .lv { display: inline-block; width: 52px; font-weight: 600; font-size: 10.5px; letter-spacing: .5px; }
+  .log-INFO    { color: #a7b6cf; } .log-INFO .lv { color: #5b8dd9; }
+  .log-WARNING { color: #e5c07b; } .log-WARNING .lv { color: var(--amber); }
+  .log-ERROR   { color: #e8938a; } .log-ERROR .lv { color: var(--red); }
+
+  /* ---------- 结果横幅 ---------- */
+  .banner {
+    display: none; padding: 14px 18px; border-radius: var(--radius);
+    margin-bottom: 14px; font-size: 14px; align-items: center; gap: 12px;
+  }
+  .banner.show { display: flex; animation: slideDown .35s cubic-bezier(.2,.7,.3,1); }
+  .banner svg { width: 22px; height: 22px; flex: none; }
+  .banner .body { flex: 1; }
+  .banner b { display: block; font-size: 14.5px; margin-bottom: 2px; }
+  .banner .oid { font-family: var(--font-mono); font-weight: 600; }
+  .banner.success { background: rgba(34,197,94,.08);  border: 1px solid rgba(34,197,94,.4);  color: #86efac; }
+  .banner.unknown { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.45); color: #fcd34d; }
+  .banner.fail    { background: rgba(239,68,68,.07);  border: 1px solid rgba(239,68,68,.4);  color: #fca5a5; }
+
+  /* ---------- 任务控制 ---------- */
+  .mode-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .mode-tab {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--inset); color: var(--text-2); font-size: 13.5px; font-weight: 500;
+    cursor: pointer; transition: all var(--t-fast); user-select: none;
+  }
+  .mode-tab:hover { border-color: var(--border-strong); color: var(--text); }
+  .mode-tab.on { border-color: var(--blue); background: rgba(59,130,246,.12); color: #fff; }
+  .mode-tab svg { width: 16px; height: 16px; }
+  .countdown-wrap {
+    margin-top: 12px; padding: 12px; border-radius: 8px; text-align: center;
+    background: rgba(245,158,11,.06); border: 1px dashed rgba(245,158,11,.35);
+  }
+  .countdown-label { font-size: 11px; color: var(--text-3); letter-spacing: 1.5px; text-transform: uppercase; }
+  .countdown {
+    font-family: var(--font-mono); font-size: 34px; font-weight: 600; color: var(--amber);
+    font-variant-numeric: tabular-nums; line-height: 1.2; letter-spacing: 2px;
+  }
+  .stage-line { margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #60a5fa; }
+
+  /* ---------- 乘车人列表 ---------- */
+  .plist { max-height: 190px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .plist label {
+    display: flex; gap: 10px; align-items: center; padding: 8px 12px;
+    cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px;
+    transition: background var(--t-fast);
+  }
+  .plist label:last-child { border-bottom: 0; }
+  .plist label:hover { background: var(--elevated); }
+  .plist .pname { font-weight: 600; }
+  .plist .pid { font-family: var(--font-mono); font-size: 12px; color: var(--text-3); }
+  .plist .empty { padding: 14px; color: var(--text-3); font-size: 12.5px; text-align: center; }
+
+  /* ---------- 弹窗 ---------- */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(5,8,14,.72); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+    animation: fadeIn var(--t-med);
+  }
+  .modal {
+    background: var(--card); border: 1px solid var(--border-strong);
+    border-radius: 14px; padding: 26px; text-align: center; width: 350px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+    animation: rise .4s cubic-bezier(.34,1.4,.64,1);   /* 弹性过冲 */
+  }
+  @keyframes fadeIn { from { opacity: 0; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+  .modal h2 { font-size: 16px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .modal .hint { font-size: 12px; color: var(--text-3); margin-bottom: 16px; }
+  .qr-frame {
+    width: 248px; height: 248px; margin: 0 auto; padding: 10px;
+    background: #fff; border-radius: 12px; display: grid; place-items: center;
+  }
+  .qr-frame img { width: 100%; height: 100%; image-rendering: pixelated; }
+  .qr-status { margin-top: 14px; font-size: 13.5px; min-height: 22px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .qr-status.ok { color: #4ade80; } .qr-status.bad { color: #f87171; } .qr-status.wait { color: var(--text-2); }
+
+  .muted { color: var(--text-3); font-size: 12px; }
+  /* ---------- SVG 图标尺寸（组件不带内联样式，由此统一控制） ---------- */
+  #app svg { width: 1em; height: 1em; vertical-align: -0.125em; flex: none; }
+  .brand .logo svg { width: 20px; height: 20px; }
+  .card-head .ic svg { width: 16px; height: 16px; }
+  .mode-tab svg { width: 16px; height: 16px; }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .conn-on { background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,.6); }
+  .conn-off { background: var(--red); animation: breathe 1.1s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+  /* ---------- 入场动画：卡片瀑布渐显 ---------- */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } }
+  .topbar { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both; }
+  .grid2 > .card:nth-child(1) { animation: fadeUp .45s cubic-bezier(.2,.7,.3,1) .06s both; }
+  .grid2 > .card:nth-child(2) { animation: fadeUp .45s cubic-bezier(.2,.7,.3,1) .13s both; }
+  #app > section.card:nth-of-type(1) { animation: fadeUp .45s cubic-bezier(.2,.7,.3,1) .2s both; }
+  #app > section.card:nth-of-type(2) { animation: fadeUp .45s cubic-bezier(.2,.7,.3,1) .27s both; }
+
+  /* ---------- 倒计时：数字滚动 + 临近放票紧迫态 ---------- */
+  .countdown-wrap.urgent { border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.06); }
+  .countdown-wrap.urgent .countdown { color: #f87171; animation: pulse .8s ease-in-out infinite; }
+  .roll-enter-active, .roll-leave-active { transition: opacity .13s ease, transform .13s ease; }
+  .roll-enter-from { opacity: 0; transform: translateY(-9px); }
+  .roll-leave-to   { opacity: 0; transform: translateY(9px); }
+
+  /* ---------- 日志行滑入 ---------- */
+  @keyframes logIn { from { opacity: 0; transform: translateX(-6px); } }
+  #logbox > div { animation: logIn .22s ease-out; }
+
+  /* ---------- 下单六阶段进度条 ---------- */
+  .progress-wrap { margin-top: 14px; padding: 12px 10px 10px; border-radius: 8px;
+    background: var(--inset); border: 1px solid var(--border); }
+  .progress-steps { display: flex; align-items: flex-start; }
+  .pstep { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: none; width: 56px; }
+  .pdot {
+    width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+    border: 2px solid var(--border-strong); background: var(--card);
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-3);
+    transition: all var(--t-med);
+  }
+  .pdot svg { width: 11px; height: 11px; }
+  .plabel { font-size: 10.5px; color: var(--text-3); transition: color var(--t-med); white-space: nowrap; }
+  .pstep.done .pdot { background: var(--green); border-color: var(--green); color: #06130b; }
+  .pstep.done .plabel { color: var(--text-2); }
+  .pstep.active .pdot {
+    border-color: var(--blue); color: #fff; background: var(--blue);
+    box-shadow: 0 0 0 4px rgba(59,130,246,.18); animation: pulse 1.1s ease-in-out infinite;
+  }
+  .pstep.active .plabel { color: #60a5fa; font-weight: 600; }
+  .pline { flex: 1; height: 2px; margin-top: 9px; background: var(--border); border-radius: 1px;
+    position: relative; overflow: hidden; min-width: 8px; }
+  .pline.done { background: var(--green); }
+  .pline.active::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, var(--blue), transparent);
+    animation: flow 1.1s linear infinite;
+  }
+  @keyframes flow { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+  /* ---------- 消息气泡（toast） ---------- */
+  .toasts { position: fixed; top: 70px; right: 16px; z-index: 200;
+    display: flex; flex-direction: column; gap: 8px; width: 320px; pointer-events: none; }
+  .toast {
+    display: flex; gap: 9px; align-items: flex-start;
+    padding: 11px 13px; border-radius: 9px; font-size: 12.5px; line-height: 1.55;
+    background: var(--elevated); border: 1px solid var(--border-strong);
+    box-shadow: 0 10px 28px rgba(0,0,0,.4);
+  }
+  .toast svg { width: 15px; height: 15px; margin-top: 2px; }
+  .toast-err  { border-color: rgba(239,68,68,.5);  color: #fca5a5; }
+  .toast-warn { border-color: rgba(245,158,11,.5); color: #fcd34d; }
+  .toast-ok   { border-color: rgba(34,197,94,.5);  color: #86efac; }
+  .toast-enter-active, .toast-leave-active { transition: all .32s cubic-bezier(.2,.7,.3,1); }
+  .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(24px); }
+
+  /* ---------- 行程摘要条（信息层级：一眼看清在盯什么） ---------- */
+  .trip-strip {
+    display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+    padding: 10px 16px; margin-bottom: 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    font-size: 12.5px; color: var(--text-2);
+    animation: fadeUp .45s cubic-bezier(.2,.7,.3,1) .03s both;
+  }
+  .t-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+  .t-item b { color: var(--text); font-size: 13.5px; }
+  .t-item .mono { color: var(--text); }
+  .t-item svg { width: 14px; height: 14px; color: var(--text-3); }
+
+  /* ---------- 余票表：车次列横向滚动时固定 ---------- */
+  th:first-child, td:first-child {
+    position: sticky; left: 0;
+    background: var(--card); border-right: 1px solid var(--border);
+  }
+  th:first-child { z-index: 6; }
+  td:first-child { z-index: 2; }
+  tbody tr:hover td:first-child { background: #1b2436; }
+
+  /* ---------- 任务卡：说明块贴底填满两栏高度差 ---------- */
+  .task-card { display: flex; flex-direction: column; }
+  .log-note {
+    margin-top: auto; display: flex; gap: 8px; align-items: flex-start;
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--inset); border: 1px dashed var(--border);
+    font-size: 11.5px; color: var(--text-3); line-height: 1.75;
+  }
+  .log-note svg { width: 13px; height: 13px; margin-top: 4px; flex: none; }
+
+  @media (max-width: 640px) {
+    .toasts { width: auto; left: 12px; right: 12px; }
+    .trip-strip { gap: 6px 12px; }
+  }
+
+  /* ---------- 无障碍：减弱动态 ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
+  @media (max-width: 640px) {
+    html { font-size: 14px; }
+    .topbar { position: static; }
+    .countdown { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+  <!-- ============ 顶栏 ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"><icon name="train"></icon></div>
+      <div>
+        <h1>12306 抢票控制台</h1>
+        <div class="sub">Booking Console</div>
+      </div>
+    </div>
+    <div class="status-cluster">
+      <span class="badge" :title="wsConnected ? '实时通道已连接' : '实时通道断开，重连中'">
+        <span class="conn-dot" :class="wsConnected ? 'conn-on' : 'conn-off'"></span>
+        {{ wsConnected ? '实时' : '重连中' }}
+      </span>
+      <span class="badge" v-if="state.query_endpoint" title="当前查询端点">
+        <icon name="zap"></icon><span class="mono">{{ state.query_endpoint }}</span>
+      </span>
+      <span class="badge" v-if="state.clock_offset" title="与 12306 服务器的钟差">
+        <icon name="clock"></icon><span class="mono">{{ fmtOffset(state.clock_offset) }}</span>
+      </span>
+      <span class="badge warn" v-if="dryRun"><icon name="flask"></icon>试运行</span>
+      <span :class="loginBadge.cls" class="badge">
+        <icon name="user"></icon>{{ loginBadge.text }}
+      </span>
+      <button class="small ghost" @click="openLogin" v-if="!login.logged_in">
+        <icon name="qr"></icon>扫码登录
+      </button>
+      <span :class="taskBadge.cls" class="badge" role="status" aria-atomic="true" aria-live="polite">
+        <span class="dot" :class="{pulse: taskRunning}"></span>{{ taskBadge.text }}
+      </span>
+    </div>
+  </header>
+
+  <!-- ============ 订单结果横幅 ============ -->
+  <div v-if="lastOrder" class="banner show" :class="orderBanner.cls" role="alert">
+    <icon :name="orderBanner.icon"></icon>
+    <div class="body">
+      <b>{{ orderBanner.title }}</b>
+      {{ lastOrder.message }}
+      <template v-if="lastOrder.order_id">
+        订单号 <span class="oid">{{ lastOrder.order_id }}</span> —— 请在 30 分钟内登录 12306 完成支付
+      </template>
+    </div>
+    <button class="small ghost" @click="lastOrder=null" aria-label="关闭提示">
+      <icon name="x"></icon>
+    </button>
+  </div>
+
+  <!-- ============ 行程摘要条 ============ -->
+  <div class="trip-strip" v-if="cfg.trip.train_date || cfg.trip.from_station">
+    <span class="t-item"><icon name="route"></icon>
+      <b>{{ cfg.trip.from_station || '?' }}</b> → <b>{{ cfg.trip.to_station || '?' }}</b></span>
+    <span class="t-item"><icon name="clock"></icon><span class="mono">{{ cfg.trip.train_date || '未设日期' }}</span></span>
+    <span class="t-item"><icon name="train"></icon>
+      <span class="mono">{{ cfg.preferred_trains.length ? cfg.preferred_trains.join(' / ') : '全部车次' }}</span></span>
+    <span class="t-item"><icon name="ticket"></icon>
+      <span>{{ cfg.seat_types.join(' / ') || '未选席别' }}</span></span>
+    <span class="t-item"><icon name="user"></icon>
+      <span>{{ cfg.passengers.map(p=>p.name).join('、') || '未选乘车人' }}</span></span>
+  </div>
+
+  <div class="grid2">
+    <!-- ============ 行程配置 ============ -->
+    <section class="card" aria-label="行程配置">
+      <div class="card-head">
+        <div class="ic"><icon name="route"></icon></div>
+        <h2>行程配置</h2>
+      </div>
+
+      <div class="row">
+        <label class="f">出发日期
+          <input type="date" v-model="cfg.trip.train_date" @change="saveCfg">
+        </label>
+        <label class="f">出发站
+          <input list="stations" v-model="cfg.trip.from_station" @change="saveCfg" placeholder="如: 武汉">
+        </label>
+        <label class="f">到达站
+          <input list="stations" v-model="cfg.trip.to_station" @change="saveCfg" placeholder="如: 贵阳北">
+        </label>
+      </div>
+      <datalist id="stations"><option v-for="s in stationList" :value="s"></option></datalist>
+
+      <div class="section-label">首选车次 · 留空 = 全部车次</div>
+      <input class="mono-input" v-model="preferredText" @change="savePreferred" placeholder="G1525,G1527（逗号分隔）">
+
+      <div class="section-label">座位优先级 · 按点击顺序尝试</div>
+      <div>
+        <span v-for="s in allSeats" :key="s" class="chip"
+              :class="{on: cfg.seat_types.includes(s)}" @click="toggleSeat(s)"
+              role="checkbox" :aria-checked="cfg.seat_types.includes(s)" tabindex="0"
+              @keydown.enter.prevent="toggleSeat(s)" @keydown.space.prevent="toggleSeat(s)">
+          <span class="ord" v-if="cfg.seat_types.includes(s)">{{ cfg.seat_types.indexOf(s)+1 }}</span>{{ s }}
+        </span>
+      </div>
+
+      <div class="section-label">
+        乘车人 · 来自账户联系人
+        <button class="small ghost" style="margin-left:8px" @click="loadPassengers">
+          <icon name="refresh"></icon>刷新
+        </button>
+      </div>
+      <div class="plist">
+        <label v-for="p in accountPassengers" :key="p.name+p.id_number">
+          <input type="checkbox" :checked="isPicked(p)" @change="togglePassenger(p)">
+          <span class="pname">{{ p.name }}</span>
+          <span class="pid">{{ p.id_number }}</span>
+          <span class="muted" style="margin-left:auto">{{ p.id_type }}</span>
+        </label>
+        <div v-if="!accountPassengers.length" class="empty">
+          未登录或无联系人 —— 扫码登录后点【刷新】
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:14px; gap:18px">
+        <label class="switch">
+          <input type="checkbox" v-model="cfg.booking.dry_run" @change="saveCfg">
+          试运行（验证协议，不真实下单）
+        </label>
+        <label class="switch">
+          <input type="checkbox" v-model="cfg.monitor.auto_submit" @change="saveCfg">
+          发现余票自动下单
+        </label>
+      </div>
+    </section>
+
+    <!-- ============ 任务控制 ============ -->
+    <section class="card task-card" aria-label="任务控制">
+      <div class="card-head">
+        <div class="ic"><icon name="target"></icon></div>
+        <h2>任务控制</h2>
+        <div class="right muted" v-if="state.task && state.task.query_count">
+          已查询 <span class="mono">{{ state.task.query_count }}</span> 次
+        </div>
+      </div>
+
+      <div class="mode-tabs" role="tablist">
+        <div class="mode-tab" :class="{on: taskMode==='monitor'}" @click="taskMode='monitor'"
+             role="tab" :aria-selected="taskMode==='monitor'" tabindex="0"
+             @keydown.enter.prevent="taskMode='monitor'">
+          <icon name="activity"></icon>监控捡漏
+        </div>
+        <div class="mode-tab" :class="{on: taskMode==='sniper'}" @click="taskMode='sniper'"
+             role="tab" :aria-selected="taskMode==='sniper'" tabindex="0"
+             @keydown.enter.prevent="taskMode='sniper'">
+          <icon name="target"></icon>定时狙击
+        </div>
+      </div>
+
+      <template v-if="taskMode==='sniper'">
+        <div class="row">
+          <label class="f">放票时间<input type="time" v-model="cfg.sniper.release_time" @change="saveCfg"></label>
+          <label class="f">提前预热(秒)<input type="number" min="10" max="600" v-model.number="cfg.sniper.pre_warm_seconds" @change="saveCfg"></label>
+          <label class="f">轮询间隔(秒)<input type="number" step="0.1" min="0.2" v-model.number="cfg.sniper.sniper_interval" @change="saveCfg"></label>
+          <label class="f">最大轮次<input type="number" min="1" v-model.number="cfg.sniper.max_attempts" @change="saveCfg"></label>
+        </div>
+        <label class="switch" style="margin-top:10px">
+          <input type="checkbox" v-model="cfg.sniper.fallback_to_other_trains" @change="saveCfg">
+          首选车次无票时尝试其他车次
+        </label>
+      </template>
+      <template v-else>
+        <div class="row">
+          <label class="f">正常间隔(秒)<input type="number" step="0.5" min="1" v-model.number="cfg.monitor.query_interval" @change="saveCfg"></label>
+          <label class="f">快速间隔(秒)<input type="number" step="0.1" min="0.5" v-model.number="cfg.monitor.fast_interval" @change="saveCfg"></label>
+          <label class="f">最大退避(秒)<input type="number" step="1" v-model.number="cfg.monitor.max_interval" @change="saveCfg"></label>
+        </div>
+        <label class="switch" style="margin-top:10px">
+          <input type="checkbox" v-model="cfg.monitor.pause_in_maintenance" @change="saveCfg">
+          维护时段（23:00–06:00）自动暂停
+        </label>
+      </template>
+
+      <div class="row" style="margin-top:16px">
+        <button v-if="!taskRunning" @click="startTask">
+          <icon name="play"></icon>开始{{ taskMode==='sniper' ? '狙击' : '监控' }}
+        </button>
+        <button v-else class="danger" @click="stopTask">
+          <icon name="stop"></icon>停止任务
+        </button>
+        <button class="ghost" @click="manualQuery" :disabled="querying" :class="{spin: querying}">
+          <icon name="search"></icon>{{ querying ? '查询中…' : '查一次' }}
+        </button>
+      </div>
+
+      <div v-if="state.task && state.task.message" class="muted" style="margin-top:10px">
+        {{ state.task.message }}
+      </div>
+
+      <div v-if="countdown!==null" class="countdown-wrap" :class="{urgent: countdownUrgent}">
+        <div class="countdown-label">{{ taskMode==='sniper' ? '距放票' : '倒计时' }}</div>
+        <transition name="roll" mode="out-in">
+          <div class="countdown" :key="countdownText">{{ countdownText }}</div>
+        </transition>
+      </div>
+
+      <div v-if="state.booking && state.booking.active" class="progress-wrap"
+           role="status" :aria-label="'下单进度：'+stageName(state.booking.stage)">
+        <div class="progress-steps">
+          <template v-for="(st,i) in bookStages" :key="st.key">
+            <div class="pstep" :class="{done: i < stageIdx, active: i === stageIdx}">
+              <span class="pdot">
+                <icon v-if="i < stageIdx" name="check"></icon>
+                <template v-else>{{ i+1 }}</template>
+              </span>
+              <span class="plabel">{{ st.label }}</span>
+            </div>
+            <div v-if="i < bookStages.length-1" class="pline"
+                 :class="{done: i < stageIdx, active: i === stageIdx}"></div>
+          </template>
+        </div>
+      </div>
+
+      <div class="section-label">成功推送</div>
+      <div class="row">
+        <label class="f">渠道
+          <select v-model="cfg.notify.channel" @change="saveCfg">
+            <option value="">不推送</option>
+            <option value="serverchan">ServerChan（微信）</option>
+            <option value="pushdeer">PushDeer</option>
+            <option value="bark">Bark（iOS）</option>
+          </select>
+        </label>
+        <label class="f" style="flex:2">推送 Key
+          <input class="mono-input" v-model="cfg.notify.key" @change="saveCfg" placeholder="SCT… / PushKey / Bark Key">
+        </label>
+      </div>
+
+      <div class="log-note">
+        <icon name="terminal"></icon>
+        <span>完整后台日志见「启动器」窗口（data/logs/web.log）。本页仅在警告/错误时弹气泡提示，抢票结果见顶部横幅。</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ 余票表 ============ -->
+  <section class="card" aria-label="实时余票">
+    <div class="card-head">
+      <div class="ic"><icon name="ticket"></icon></div>
+      <h2>实时余票</h2>
+      <span class="muted" v-if="ticketMeta">{{ ticketMeta }}</span>
+      <div class="right">
+        <span class="badge warn" v-if="dryRun"><icon name="flask"></icon>试运行：下单只验证协议</span>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table v-if="tickets.length" aria-label="余票列表">
+        <thead>
+          <tr>
+            <th>车次</th><th>区间</th><th>出发 → 到达</th><th>历时</th>
+            <th v-for="s in seatCols" :key="s">{{ s }}</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="t in tickets" :key="t.station_train_code + t.depart_time"
+              :class="{preferred: isPreferred(t), unbuyable: !t.can_buy_online}">
+            <td><span class="train-code">{{ t.station_train_code }}</span></td>
+            <td>{{ t.from_station }} → {{ t.to_station }}</td>
+            <td class="time-cell">{{ t.depart_time }} → {{ t.arrive_time }}</td>
+            <td class="time-cell">{{ t.duration }}</td>
+            <td v-for="s in seatCols" :key="s">
+              <span class="seat-pill"
+                    :class="[hasSeat(t,s) ? 'seat-yes' : 'seat-no', flashCls(t,s)]">{{ seatVal(t,s) }}</span>
+            </td>
+            <td>
+              <template v-if="t.can_buy_online && bookableSeat(t)">
+                <select class="seat-select" v-model="bookSeat[t.station_train_code]"
+                        :aria-label="'选择 '+t.station_train_code+' 的席别'">
+                  <option v-for="s in bookableSeats(t)" :key="s" :value="s">{{ s }}</option>
+                </select>
+                <button class="small" style="margin-left:6px" :disabled="booking"
+                        @click="book(t)" :aria-label="'预订 '+t.station_train_code">
+                  <icon name="zap"></icon>预订
+                </button>
+              </template>
+              <span v-else class="muted">{{ t.button_text || '—' }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="empty-state">
+        <icon name="ticket"></icon>
+        <div>暂无余票数据</div>
+        <div class="muted" style="margin-top:4px">点击【查一次】立即查询，或启动任务自动轮询</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 消息气泡 ============ -->
+  <div class="toasts" aria-live="polite">
+    <transition-group name="toast">
+      <div v-for="t in toasts" :key="t.id" class="toast" :class="'toast-'+t.kind">
+        <icon :name="t.kind==='err' ? 'xcircle' : t.kind==='ok' ? 'check' : 'alert'"></icon>
+        <span>{{ t.msg }}</span>
+      </div>
+    </transition-group>
+  </div>
+
+  <!-- ============ 登录弹窗 ============ -->
+  <div class="modal-mask" v-if="showLogin" @click.self="showLogin=false" role="dialog" aria-modal="true" aria-label="扫码登录">
+    <div class="modal">
+      <h2><icon name="qr"></icon>扫码登录 12306</h2>
+      <div class="hint">使用「铁路12306」App 扫一扫</div>
+      <div class="qr-frame" v-if="qrImg && qrStatus!=='expired'">
+        <img :src="'data:image/png;base64,'+qrImg" alt="12306 登录二维码">
+      </div>
+      <div v-else class="qr-frame muted" style="font-size:13px">
+        {{ qrLoading ? '加载中…' : '获取失败，请刷新' }}
+      </div>
+      <div class="qr-status" :class="qrStatusCls">
+        <span class="dot pulse" v-if="qrStatus==='waiting'||qrStatus==='scanned'"></span>
+        {{ qrStatusText }}
+      </div>
+      <div class="row" style="justify-content:center; margin-top:14px">
+        <button class="small ghost" @click="refreshQr"><icon name="refresh"></icon>刷新二维码</button>
+        <button class="small ghost" @click="showLogin=false"><icon name="x"></icon>关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+/* 下单六阶段（进度条用，与后端 book_progress 事件的 stage 对应） */
+const BOOK_STAGES = [
+  { key: "submit",        label: "提交订单" },
+  { key: "initDc",        label: "获取令牌" },
+  { key: "checkOrderInfo",label: "校验信息" },
+  { key: "getQueueCount", label: "查询排队" },
+  { key: "confirm",       label: "确认排队" },
+  { key: "queue",         label: "等待出票" },
+];
+
+/* ---------- 内联 SVG 图标（stroke 风格，替代 emoji） ---------- */
+const ICONS = {
+  train: '<path d="M8 3h8a4 4 0 0 1 4 4v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a4 4 0 0 1 4-4z"/><path d="M4 10h16"/><circle cx="8.5" cy="13.5" r="1"/><circle cx="15.5" cy="13.5" r="1"/><path d="M7 17l-2 4M17 17l2 4"/>',
+  route: '<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>',
+  activity: '<polyline points="3 12 7 12 10 4 14 20 17 12 21 12"/>',
+  ticket: '<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1.5a2.5 2.5 0 0 0 0 5V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1.5a2.5 2.5 0 0 0 0-5z"/><line x1="13" y1="6.5" x2="13" y2="17.5" stroke-dasharray="2 2.5"/>',
+  terminal: '<rect x="3" y="4" width="18" height="16" rx="2"/><polyline points="7.5 9.5 10.5 12 7.5 14.5"/><line x1="12.5" y1="15" x2="16.5" y2="15"/>',
+  user: '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5c.8-3.5 3.8-5.5 7.5-5.5s6.7 2 7.5 5.5"/>',
+  qr: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="2.5" height="2.5"/><rect x="17.5" y="17.5" width="2.5" height="2.5"/><rect x="14" y="17.5" width="2" height="2"/><rect x="17.5" y="14" width="2" height="2"/>',
+  play: '<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke-linejoin="round"/>',
+  stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/>',
+  refresh: '<path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><polyline points="20.5 4 20.5 9.5 15 9.5"/>',
+  zap: '<path d="M13 2.5L4.5 14h5.5l-1 7.5L18.5 10H12.5z" fill="currentColor" stroke-linejoin="round"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 6.8 12 12 15.6 14"/>',
+  flask: '<path d="M9.5 3h5M10.5 3v6.2L5.3 18.4A2 2 0 0 0 7 21.4h10a2 2 0 0 0 1.7-3L13.5 9.2V3"/><line x1="7.8" y1="14.5" x2="16.2" y2="14.5"/>',
+  check: '<circle cx="12" cy="12" r="9"/><polyline points="8 12.2 11 15.2 16.2 9.5"/>',
+  alert: '<path d="M12 3.2L21.5 20H2.5z" stroke-linejoin="round"/><line x1="12" y1="9.5" x2="12" y2="14"/><circle cx="12" cy="17" r=".9" fill="currentColor"/>',
+  x: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
+  xcircle: '<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>',
+  bell: '<path d="M18 8.5a6 6 0 0 0-12 0c0 6.5-2.5 7.5-2.5 7.5h17S18 15 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/>',
+};
+
+const app = createApp({
+  data() {
+    return {
+      ws: null, wsRetry: 0, wsConnected: false,
+      state: { task: {}, booking: {} },
+      login: { logged_in: false, username: "" },
+      cfg: this.emptyCfg(),
+      dryRun: false,
+      stations: {},
+      accountPassengers: [],
+      preferredText: "",
+      tickets: [], ticketMeta: "",
+      flashCells: {}, flashTimer: null,
+      bookStages: BOOK_STAGES,
+      toasts: [], toastSeq: 0,
+      taskMode: "monitor",
+      querying: false, booking: false,
+      bookSeat: {},
+      lastOrder: null,
+      showLogin: false, qrImg: "", qrUuid: "", qrLoading: false, qrError: "",
+      qrStatus: "", qrTimer: null,
+      allSeats: ["商务座","特等座","一等座","二等座","高级软卧","软卧","硬卧","动卧","软座","硬座","无座"],
+    };
+  },
+  computed: {
+    stationList() { return Object.keys(this.stations); },
+    seatCols() {
+      return this.cfg.seat_types && this.cfg.seat_types.length
+        ? this.cfg.seat_types : ["商务座","一等座","二等座","软卧","硬卧","硬座","无座"];
+    },
+    taskRunning() {
+      const t = this.state.task || {};
+      return t.mode && t.state && !["idle"].includes(t.state);
+    },
+    countdown() {
+      const t = this.state.task || {};
+      return (t.countdown_sec != null && t.countdown_sec > 0) ? t.countdown_sec : null;
+    },
+    countdownText() { return this.countdown !== null ? this.fmtCountdown(this.countdown) : ""; },
+    countdownUrgent() { return this.countdown !== null && this.countdown < 60; },
+    stageIdx() {
+      const s = (this.state.booking || {}).stage;
+      if (s === "success") return BOOK_STAGES.length;      // 全部完成
+      if (s === "dry_run") return 4;                        // 试运行止于 confirm 前
+      const i = BOOK_STAGES.findIndex(x => x.key === s);
+      return i < 0 ? 0 : i;
+    },
+    loginBadge() {
+      return this.login.logged_in
+        ? { cls: "ok", text: "已登录 " + (this.login.username || "") }
+        : { cls: "err", text: "未登录" };
+    },
+    taskBadge() {
+      const t = this.state.task || {};
+      const map = { idle:["","空闲"], waiting:["warn","等待放票"], prewarm:["warn","预热中"],
+        running:["run","运行中"], booking:["run","下单中"], paused:["","维护暂停"],
+        stopping:["warn","停止中"] };
+      const [cls, text] = map[t.state] || ["", t.state || "空闲"];
+      const prefix = t.mode === "sniper" ? "狙击" : t.mode === "monitor" ? "监控" : "";
+      return { cls, text: prefix ? prefix + " · " + text : text };
+    },
+    orderBanner() {
+      const o = this.lastOrder;
+      if (!o) return {};
+      if (o.status === "success")  return { cls: "success", icon: "check",   title: "抢票成功" };
+      if (o.status === "unknown")  return { cls: "unknown", icon: "alert",   title: "订单结果未知 — 请立即登录 12306 核对，勿重复下单" };
+      if (o.status === "dry_run_ok") return { cls: "success", icon: "flask", title: "试运行验证通过" };
+      return { cls: "fail", icon: "xcircle", title: "下单失败 (" + (o.train || "") + ")" };
+    },
+    qrStatusText() {
+      return { waiting:"等待扫码…", scanned:"已扫码，请在手机上确认",
+               confirmed:"登录成功", expired:"二维码已过期，请刷新",
+               error:"出错了: " + this.qrError }[this.qrStatus] || "";
+    },
+    qrStatusCls() {
+      if (this.qrStatus === "confirmed") return "ok";
+      if (this.qrStatus === "expired" || this.qrStatus === "error") return "bad";
+      return "wait";
+    },
+  },
+  methods: {
+    emptyCfg() {
+      return {
+        trip: { train_date: "", from_station: "", to_station: "" },
+        preferred_trains: [], seat_types: ["二等座"], passengers: [],
+        monitor: { auto_submit:true, query_interval:3, fast_interval:1, max_interval:10,
+          backoff_streak:15, fast_mode_timeout:5, pause_in_maintenance:true, max_retries:0 },
+        sniper: { release_time:"13:15", pre_warm_seconds:60, sniper_interval:0.3,
+          max_attempts:30, fallback_to_other_trains:false },
+        booking: { dry_run:false, choose_seats:"", seat_detail_type:"000", queue_wait_seconds:120 },
+        notify: { channel:"", key:"" },
+        server: { host:"127.0.0.1", port:8765 },
+      };
+    },
+    fmtTime(ts) { return new Date(ts*1000).toLocaleTimeString("zh-CN", {hour12:false}); },
+    fmtOffset(sec) { return (sec>0?"+":"") + sec.toFixed(2) + "s"; },
+    fmtCountdown(s) {
+      const h = Math.floor(s/3600), m = Math.floor(s%3600/60), ss = Math.floor(s%60);
+      return (h?h+"时":"") + String(m).padStart(2,"0") + ":" + String(ss).padStart(2,"0");
+    },
+    stageName(s) {
+      return { submit:"提交订单", initDc:"获取令牌", checkOrderInfo:"校验信息",
+        getQueueCount:"查询排队", confirm:"确认排队", queue:"等待出票",
+        success:"成功", dry_run:"试运行完成" }[s] || s;
+    },
+    isPreferred(t) { return (this.cfg.preferred_trains||[]).includes(t.station_train_code); },
+    seatVal(t, s) { const v = (t.seats||{})[s]; return (!v || v==="无") ? "—" : v; },
+    hasSeat(t, s) {
+      const v = (t.seats||{})[s];
+      if (!v || ["无","","*","0","--"].includes(v)) return false;
+      const n = parseInt(v); return isNaN(n) ? v === "有" : n > 0;
+    },
+    bookableSeats(t) { return this.cfg.seat_types.filter(s => this.hasSeat(t, s)); },
+    bookableSeat(t) { return this.bookableSeats(t).length > 0; },
+
+    async loadCfg() {
+      const r = await (await fetch("/api/config")).json();
+      this.cfg = Object.assign(this.emptyCfg(), r);
+      this.preferredText = (this.cfg.preferred_trains||[]).join(",");
+      this.dryRun = !!this.cfg.booking.dry_run;
+    },
+    async saveCfg() {
+      this.dryRun = !!this.cfg.booking.dry_run;
+      await fetch("/api/config", { method:"PUT", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ config: this.cfg }) });
+    },
+    savePreferred() {
+      this.cfg.preferred_trains = this.preferredText
+        .split(/[,，\s]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+      this.saveCfg();
+    },
+    toggleSeat(s) {
+      const i = this.cfg.seat_types.indexOf(s);
+      if (i >= 0) this.cfg.seat_types.splice(i,1); else this.cfg.seat_types.push(s);
+      this.saveCfg();
+    },
+    isPicked(p) { return this.cfg.passengers.some(x => x.name===p.name && x.id_number===p.id_number); },
+    togglePassenger(p) {
+      const i = this.cfg.passengers.findIndex(x => x.name===p.name);
+      if (i>=0) this.cfg.passengers.splice(i,1);
+      else this.cfg.passengers.push({ name:p.name, id_number:p.id_number });
+      this.saveCfg();
+    },
+    async loadPassengers() {
+      const r = await fetch("/api/passengers");
+      if (r.status === 401) { this.openLogin(); return; }
+      const d = await r.json();
+      if (d.ok) this.accountPassengers = d.passengers;
+      else this.pushLog("ERROR", "读取联系人失败: " + d.error);
+    },
+    async loadStations() {
+      try {
+        const d = await (await fetch("/api/stations")).json();
+        if (d.ok) this.stations = d.stations;
+      } catch(e) {}
+    },
+    async manualQuery() {
+      this.querying = true;
+      try {
+        const d = await (await fetch("/api/query", { method:"POST",
+          headers:{"Content-Type":"application/json"}, body:"{}" })).json();
+        if (d.ok) { this.setTickets(d.tickets); this.ticketMeta = `${d.tickets.length} 个车次 · 手动查询`; }
+        else this.pushLog("ERROR", "查询失败: " + d.error);
+      } finally { this.querying = false; }
+    },
+    setTickets(items) {
+      const next = items || [];
+      // 与上一轮对比，标记发生变化的 车次|席别 单元格（出票绿闪 / 减少琥珀闪）
+      if (this.tickets.length) {
+        const oldMap = {};
+        for (const t of this.tickets)
+          for (const s in (t.seats || {})) oldMap[t.station_train_code + "|" + s] = t.seats[s];
+        const flashes = {};
+        for (const t of next) {
+          for (const s in (t.seats || {})) {
+            const k = t.station_train_code + "|" + s;
+            const ov = oldMap[k], nv = t.seats[s];
+            if (ov !== undefined && ov !== nv)
+              flashes[k] = this.availVal(nv) > this.availVal(ov) ? "flash-up" : "flash-down";
+          }
+        }
+        if (Object.keys(flashes).length) {
+          this.flashCells = flashes;
+          clearTimeout(this.flashTimer);
+          this.flashTimer = setTimeout(() => { this.flashCells = {}; }, 1000);
+        }
+      }
+      this.tickets = next;
+      for (const t of this.tickets) {
+        if (!this.bookSeat[t.station_train_code]) {
+          const bs = this.bookableSeats(t);
+          this.bookSeat[t.station_train_code] = bs.length ? bs[0] : "";
+        }
+      }
+    },
+    availVal(v) {
+      if (!v || ["无","","*","0","--"].includes(v)) return -1;
+      const n = parseInt(v);
+      return isNaN(n) ? (v === "有" ? 99 : 0) : n;
+    },
+    flashCls(t, s) { return this.flashCells[t.station_train_code + "|" + s] || ""; },
+    async book(t) {
+      const seat = this.bookSeat[t.station_train_code] || this.bookableSeats(t)[0];
+      if (!seat) return;
+      if (!confirm(`确认预订 ${t.station_train_code} ${t.from_station}→${t.to_station} ${seat}${this.dryRun?"（试运行，不真实下单）":""}？`)) return;
+      this.booking = true; this.lastOrder = null;
+      try {
+        const r = await fetch("/api/book", { method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ ticket: t, seat_type: seat }) });
+        const d = await r.json();
+        if (!d.ok) alert(d.error || "无法下单");
+      } finally { this.booking = false; }
+    },
+    async startTask() {
+      this.lastOrder = null;
+      const r = await fetch("/api/task/start", { method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ mode: this.taskMode }) });
+      const d = await r.json();
+      if (!d.ok) alert(d.error || "启动失败");
+    },
+    async stopTask() { await fetch("/api/task/stop", { method:"POST" }); },
+
+    openLogin() { this.showLogin = true; this.refreshQr(); },
+    async refreshQr() {
+      this.qrLoading = true; this.qrError = ""; this.qrStatus = "";
+      this.stopQrPoll();
+      try {
+        const d = await (await fetch("/api/login/qr", { method:"POST" })).json();
+        if (!d.ok) { this.qrError = d.error || "未知错误"; this.qrStatus = "error"; return; }
+        this.qrImg = d.image_base64; this.qrUuid = d.uuid; this.qrStatus = "waiting";
+        this.qrTimer = setInterval(() => this.pollQr(), 2000);
+      } catch(e) { this.qrError = String(e); this.qrStatus = "error"; }
+      finally { this.qrLoading = false; }
+    },
+    stopQrPoll() { if (this.qrTimer) { clearInterval(this.qrTimer); this.qrTimer = null; } },
+    async pollQr() {
+      try {
+        const d = await (await fetch("/api/login/poll", { method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ uuid: this.qrUuid }) })).json();
+        this.qrStatus = d.status;
+        if (d.status === "error") { this.qrError = d.message||""; this.stopQrPoll(); }
+        if (d.status === "expired") this.stopQrPoll();
+        if (d.status === "confirmed") {
+          this.stopQrPoll();
+          this.login = { logged_in: true, username: d.username || "" };
+          setTimeout(() => { this.showLogin = false; this.loadPassengers(); }, 1000);
+        }
+      } catch(e) {}
+    },
+
+    toast(msg, kind) {
+      kind = kind || (String(msg).includes("失败") || String(msg).includes("错误") ? "err" : "warn");
+      const id = ++this.toastSeq;
+      this.toasts.push({ id, msg, kind });
+      setTimeout(() => {
+        const i = this.toasts.findIndex(t => t.id === id);
+        if (i >= 0) this.toasts.splice(i, 1);
+      }, 7000);
+      if (this.toasts.length > 5) this.toasts.shift();
+    },
+    pushLog(level, msg) {
+      // 完整日志在启动器（data/logs/web.log）；此处只弹警告/错误气泡
+      if (level === "ERROR") this.toast(msg, "err");
+      else if (level === "WARNING") this.toast(msg, "warn");
+    },
+    onKeydown(e) { if (e.key === "Escape" && this.showLogin) this.showLogin = false; },
+
+    connectWs() {
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      this.ws = new WebSocket(`${proto}://${location.host}/ws`);
+      this.ws.onopen = () => { this.wsRetry = 0; this.wsConnected = true; };
+      this.ws.onmessage = (e) => {
+        let ev; try { ev = JSON.parse(e.data); } catch { return; }
+        switch (ev.type) {
+          case "hello":
+            this.state = ev.state || this.state;
+            this.login = ev.login || this.login;
+            if (ev.tickets && ev.tickets.length) this.setTickets(ev.tickets);
+            break;
+          case "log": this.pushLog(ev.level, ev.msg); break;
+          case "state": this.state.task = ev.state; break;
+          case "tickets":
+            this.setTickets(ev.items);
+            this.ticketMeta = `${ev.route} · ${ev.date} · ${ev.items.length} 车次`;
+            break;
+          case "order":
+            this.state.booking = {active:false, stage:""};
+            this.lastOrder = ev.result; this.notifyBrowser(ev.result);
+            break;
+          case "login": this.login = { logged_in: ev.logged_in, username: ev.username }; break;
+          case "book_progress": this.state.booking = {active:true, stage:ev.stage}; break;
+        }
+      };
+      this.ws.onclose = () => {
+        this.wsConnected = false;
+        const delay = Math.min(10000, 500 * Math.pow(2, this.wsRetry++));
+        setTimeout(() => this.connectWs(), delay);
+      };
+      this.ws.onerror = () => { try { this.ws.close(); } catch {} };
+    },
+    notifyBrowser(order) {
+      if (order.status === "success" && "Notification" in window && Notification.permission === "granted") {
+        new Notification("12306 抢票成功", { body: `${order.train} 订单号 ${order.order_id}，请尽快支付！` });
+      }
+      if (order.status === "success") {
+        try {
+          const ctx = new (window.AudioContext||window.webkitAudioContext)();
+          [0, .25, .5].forEach(t => {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.value = 880; g.gain.value = .3;
+            o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .18);
+          });
+        } catch(e) {}
+      }
+    },
+  },
+  async mounted() {
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+    window.addEventListener("keydown", this.onKeydown);
+    await this.loadCfg();
+    this.loadStations();
+    this.connectWs();
+    try {
+      const d = await (await fetch("/api/status")).json();
+      this.state = d.state || this.state;
+      this.login = d.login || this.login;
+      if (this.login.logged_in) this.loadPassengers();
+    } catch(e) {}
+  },
+  beforeUnmount() { window.removeEventListener("keydown", this.onKeydown); },
+  watch: { "cfg.booking.dry_run"(v) { this.dryRun = v; } },
+});
+
+app.component("icon", {
+  props: { name: String },
+  computed: {
+    paths() { return ICONS[this.name] || ""; },
+  },
+  template: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"
+    v-html="paths"></svg>`,
+});
+
+app.mount("#app");
+</script>
+</body>
+</html>

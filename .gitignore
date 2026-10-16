@@ -1,0 +1,29 @@
+﻿# 虚拟环境
+.venv/
+.venv314/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 运行时产物（配置 / 会话 / 日志 全部集中在 data/）
+data/
+*.pkl
+*.log
+
+# 旧版根目录遗留（已迁入 data/，防历史副本再被跟踪）
+web_config.json
+
+# 工具生成
+.claude/worktrees/
+
+# PyInstaller 打包产物（12306.exe 由 launcher.py 构建）
+build/
+dist/
+*.exe
+*.spec
+
+# 本地开发工具（不随仓库分发）
+.idea/
+.claude/
+CLAUDE.md
