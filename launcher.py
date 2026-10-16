@@ -215,7 +215,7 @@ class Launcher:
         opts = ttk.Frame(self.root, padding=(16, 0, 16, 4))
         opts.pack(fill="x")
         self.auto_open = tk.BooleanVar(value=True)
-        self.stop_on_exit = tk.BooleanVar(value=False)
+        self.stop_on_exit = tk.BooleanVar(value=True)
         ttk.Checkbutton(opts, text="启动后自动打开网页",
                         variable=self.auto_open).pack(side="left")
         ttk.Checkbutton(opts, text="关闭启动器时同时停止服务",
