@@ -173,6 +173,7 @@ class Launcher:
         self.root.after(500, self._poll_status)
         threading.Thread(target=_cleanup_stale_mei, daemon=True).start()
         self.append_log("启动器就绪。点【启动服务】即可使用（无需安装依赖）。")
+        self.append_log("此处只显示本次会话日志；历史记录见 data/logs/web.log", "warn")
 
     # ---------------- UI ----------------
 
@@ -248,7 +249,7 @@ class Launcher:
         try:
             size = os.path.getsize(LOG_FILE)
             if not self._log_file_ok:
-                self._log_pos = max(0, size - 16384)   # 首次只带出末尾 16KB
+                self._log_pos = size   # 从文件末尾开始，只显示本次会话日志
                 self._log_file_ok = True
             if size > self._log_pos:
                 with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
