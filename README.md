@@ -171,7 +171,7 @@ A: 降低查询频率 (QUERY_INTERVAL 调大)，更换 IP 后等待一段时间
 │   ├── web_session.pkl   #   Web 登录会话
 │   └── 12306_cookies.pkl #   CLI 登录会话
 ├── requirements.txt      # Python 依赖
-└── README.md / USAGE.md / CLAUDE.md
+└── README.md / USAGE.md
 ```
 
 ## 免责声明
